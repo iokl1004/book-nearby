@@ -21,7 +21,10 @@ export const getLibraries = (isbn: string, region: string, here: Coords | null) 
     `/api/libraries?${new URLSearchParams({ isbn, region, ...(here && { lat: String(here.lat), lng: String(here.lng) }) })}`,
   )
 
-export type RegionCount = { code: string; name: string; count: number }
+export const getBook = (isbn: string) =>
+  getJson<{ item: Book }>(`/api/book?${new URLSearchParams({ isbn })}`).then((r) => r.item)
+
+export type RegionCount ={ code: string; name: string; count: number }
 export const getRegionCounts = (isbn: string) =>
   getJson<{ mock: boolean; items: RegionCount[] }>(`/api/regions?${new URLSearchParams({ isbn })}`)
 

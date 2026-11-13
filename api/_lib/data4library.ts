@@ -53,8 +53,16 @@ async function fetchApi(op: string, params: Record<string, string>, key: string)
 
 export const QUOTA_MESSAGE = '오늘 조회 가능한 횟수를 모두 사용했어요. 내일 다시 시도해 주세요.'
 
-export const toBooks = (raw: any): Book[] =>
-  (raw?.response?.docs ?? []).map(({ doc }: any) => ({
+export const toBooks = (raw: any): Book[] => (raw?.response?.docs ?? []).map(({ doc }: any) => toBook(doc))
+
+// 상세 조회(srchDtlList)는 같은 항목을 response.detail[0].book에 담아 준다. 없으면 null
+export const toBookDetail = (raw: any): Book | null => {
+  const book = raw?.response?.detail?.[0]?.book
+  return book?.isbn13 ? toBook(book) : null
+}
+
+// 검색 결과와 상세 조회가 같은 정리 규칙을 쓰도록 한 곳에 둔다
+const toBook = (doc: any): Book => ({
     isbn13: doc.isbn13,
     // 정보나루가 값을 안 주는 경우가 있어서(출판연도 없음 등) 화면에 "undefined"가 나오지 않게 빈 글자로 맞춘다
     title: bookTitle(doc.bookname, doc.vol),
@@ -64,7 +72,7 @@ export const toBooks = (raw: any): Book[] =>
     publisher: text(doc.publisher),
     year: publicationYear(doc.publication_year),
     image: text(doc.bookImageURL).replace(/^http:/, 'https:'), // https 사이트에서 혼합 콘텐츠로 막히지 않게
-  }))
+  })
 
 const text = (v: unknown) => (v == null ? '' : String(v).trim())
 
@@ -151,6 +159,9 @@ const MOCK: Record<string, (p: Record<string, string>) => unknown> = {
         { lib: { libCode: '100003', libName: '중랑구립면목정보도서관', address: '서울 중랑구', tel: '', latitude: '37.5875', longitude: '127.0873', homepage: '' } },
       ],
     },
+  }),
+  srchDtlList: ({ isbn13 }) => ({
+    response: { detail: [{ book: { isbn13, bookname: '목업 도서 (목업)', authors: '홍길동 지음', publisher: '목업출판', publication_year: '2024', bookImageURL: '' } }] },
   }),
   bookExist: ({ libCode }) => ({
     response: { result: { hasBook: 'Y', loanAvailable: libCode === '100002' ? 'N' : 'Y' } },

@@ -18,6 +18,7 @@ npm test
 ## 구조
 - `api/search.ts` — 도서 검색 (`srchBooks`). 키워드 검색은 "어린 왕자"에 "어린"·"왕자"가 들어간 아무 책이나 섞여서, 제목 검색과 저자 검색을 동시에 하고 결과가 더 많은 쪽을 위에 보여준다 (둘 다 없으면 키워드 검색)
 - `src/components/SearchBox.tsx` — 검색창 미리보기. 입력할 때마다 API를 부르면 하루 한도를 금방 쓰므로, 인기 대출 도서 5,000권을 `npm run sync:popular`로 받아 `public/data/popular-books.json`(판본 중복 제거 3,076개, gzip 54KB)에 두고 브라우저 안에서만 찾는다 → 입력 중 API 호출 0건. 최근 검색어는 브라우저(localStorage)에만 저장
+- `api/book.ts` — ISBN으로 책 정보 (`srchDtlList`). 상세 페이지 주소로 바로 들어오면(공유 링크·새로고침) 사용한다. 검색 결과에서 들어올 때는 넘겨받은 정보를 써서 호출하지 않는다
 - `api/regions.ts` — 고른 지역에 이 판본이 없을 때, 17개 시·도를 동시에 조회해 어느 지역에 몇 곳 있는지 알려준다 (정보나루는 전국 조회가 안 돼서 지역별로 묻고, 개수만 필요해 `pageSize=1`)
 - `api/libraries.ts` — 소장 도서관(`libSrchByBook`) + 도서관별 대출 가능 여부(`bookExist`)를 합쳐서 반환
 - `api/_lib/data4library.ts` — 정보나루 호출, 응답 정리, 목업

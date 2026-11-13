@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { getLibraries, getRegionCounts, getRoundedPosition, REGIONS, type Book, type Coords } from '../api'
+import { getBook, getLibraries, getRegionCounts, getRoundedPosition, REGIONS, type Book, type Coords } from '../api'
 import BookInfo from '../components/BookInfo'
 import KakaoMap, { type Place } from '../components/KakaoMap'
 import Cover from '../components/Cover'
@@ -11,7 +11,24 @@ import { openStatus } from '../hours'
 export default function BookPage() {
   const { isbn = '' } = useParams()
   const navigate = useNavigate()
-  const book = (useLocation().state as { book?: Book } | null)?.book
+  const location = useLocation()
+  // 검색 결과에서 왔으면 넘겨받은 책 정보를 바로 쓰고,
+  // 주소로 바로 들어왔으면(공유 링크·새로고침) ISBN으로 불러온다
+  const fromSearch = (location.state as { book?: Book } | null)?.book
+  const detail = useQuery({ queryKey: ['book', isbn], queryFn: () => getBook(isbn), enabled: !fromSearch, retry: false })
+  const book = fromSearch ?? detail.data
+
+  // 브라우저 탭·공유 미리보기에 책 제목이 보이게
+  useEffect(() => {
+    if (book) document.title = `${book.title} — 책있나`
+    return () => { document.title = '책있나 — 근처 도서관 대출 가능 여부' }
+  }, [book])
+
+  // 주소로 바로 들어오면 "뒤로"가 이 사이트 밖(또는 빈 페이지)으로 나가 버려서, 그때는 같은 제목 검색으로 보낸다
+  const goBack = () => {
+    if (location.key !== 'default') return navigate(-1)
+    navigate(searchTitle ? `/?q=${encodeURIComponent(searchTitle)}` : '/')
+  }
   const [region, setRegion] = useState('11')
   const [here, setHere] = useState<Coords | null>(null)
   const [locating, setLocating] = useState(false)
@@ -71,13 +88,28 @@ export default function BookPage() {
 
   return (
     <>
-      <button type="button" className="back" onClick={() => navigate(-1)}>← 검색 결과로</button>
+      <button type="button" className="back" onClick={goBack}>← 검색 결과로</button>
 
       <div className="book-head">
         <Cover src={book?.image} title={book?.title} large />
         <div>
-          <h1>{book?.title ?? '도서 정보'}</h1>
-          {book ? <BookInfo book={book} /> : <p className="meta">ISBN {isbn}</p>}
+          {book ? (
+            <>
+              <h1>{book.title}</h1>
+              <BookInfo book={book} />
+            </>
+          ) : detail.isFetching ? (
+            <>
+              <div className="skeleton" style={{ width: 240, height: 34, marginBottom: 10 }} />
+              <div className="skeleton" style={{ width: 180, height: 60 }} />
+            </>
+          ) : (
+            // 정보나루에 상세 정보가 없어도 소장 도서관은 ISBN으로 찾을 수 있으니 아래 목록은 그대로 보여준다
+            <>
+              <h1>도서 정보</h1>
+              <p className="meta">ISBN {isbn} · {detail.error?.message ?? '도서 정보를 찾을 수 없어요.'}</p>
+            </>
+          )}
         </div>
       </div>
 
