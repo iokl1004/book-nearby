@@ -195,7 +195,8 @@ select { padding: 8px 32px 8px 12px; border: 1px solid var(--line); border-radiu
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 @media (max-width: 820px) {
-  .detail { grid-template-columns: 1fr; }
+  /* 1fr은 "내용의 최소 너비보다 작아지지 않음"이라 긴 홈페이지 주소 때문에 휴대폰에서 426px로 넘쳤다 → minmax(0, 1fr) */
+  .detail, .detail.single { grid-template-columns: minmax(0, 1fr); }
   .map-wrap { position: static; order: -1; }
   .map { height: 280px; }
   .steps { grid-template-columns: 1fr; margin-top: 36px; }
