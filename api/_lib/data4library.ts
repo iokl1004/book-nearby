@@ -4,6 +4,7 @@
 import type { Availability, Book, Library } from './types.js'
 import { cleanText } from './operating-time.js'
 import { parseAuthors, parseGenre } from './authors.js'
+import { getShared, setShared } from './shared-cache.js'
 
 const BASE = 'http://data4library.kr/api'
 
@@ -13,10 +14,14 @@ export const isMock = () => !process.env.DATA4LIBRARY_KEY
 // 정보나루는 IP 등록 전 하루 500건 한도가 있어서, 한도 초과는 다른 오류와 구분해 사용자에게 알려준다.
 export class QuotaError extends Error {}
 
-// 같은 요청은 서버 메모리에 저장해 두고 다시 쓴다 (정보나루 호출 수 절약).
-// 소장 도서관 목록·검색 결과는 하루, 대출 여부는 1시간 (CDN 캐시와 같은 기준).
-// shortcut: 서버 인스턴스마다 따로 저장되고 재시작하면 비워진다. 한도가 계속 모자라면 Redis(Upstash 등)로 옮기기.
-const TTL: Record<string, number> = { srchBooks: 86_400_000, libSrchByBook: 86_400_000, bookExist: 3_600_000 }
+// 정보나루 호출 수를 줄이는 캐시. 메모리(서버 하나) → 공용 Redis(모든 서버) → 정보나루 순서로 찾는다.
+// 신선한 기간: 검색 결과·소장 도서관 목록·책 정보는 하루, 대출 여부는 1시간 (CDN 캐시와 같은 기준)
+const TTL: Record<string, number> = { srchBooks: 86_400_000, srchDtlList: 86_400_000, libSrchByBook: 86_400_000, bookExist: 3_600_000 }
+// 공용 캐시에는 7일 보관해서, 정보나루가 실패(한도 초과 등)하면 지난 결과라도 보여준다.
+// 단, 대출 여부는 지난 값이 헛걸음을 만들 수 있어 대신 쓰지 않는다.
+const KEEP_SECONDS = 7 * 24 * 60 * 60
+const STALE_OK = new Set(['srchBooks', 'srchDtlList', 'libSrchByBook'])
+
 const MAX_ENTRIES = 2000
 const cache = new Map<string, { at: number; value: Promise<any> }>()
 export const clearCache = () => cache.clear()
@@ -30,11 +35,28 @@ export function callApi(op: string, params: Record<string, string>): Promise<any
   if (hit && Date.now() - hit.at < (TTL[op] ?? 0)) return hit.value
 
   // 진행 중인 요청도 저장해서, 동시에 들어온 같은 요청은 한 번만 호출한다
-  const value = fetchApi(op, params, key)
+  const value = fetchShared(op, params, key, id)
   cache.set(id, { at: Date.now(), value })
   if (cache.size > MAX_ENTRIES) cache.delete(cache.keys().next().value!) // 가장 오래된 것부터 버린다
   value.catch(() => cache.delete(id)) // 실패한 응답은 저장하지 않는다
   return value
+}
+
+async function fetchShared(op: string, params: Record<string, string>, key: string, id: string) {
+  const sharedKey = `d4l:${id}`
+  const stored = await getShared(sharedKey)
+  if (stored && Date.now() - stored.at < (TTL[op] ?? 0)) return stored.raw
+  try {
+    const raw = await fetchApi(op, params, key)
+    await setShared(sharedKey, raw, KEEP_SECONDS)
+    return raw
+  } catch (e) {
+    if (stored && STALE_OK.has(op)) {
+      console.warn(`정보나루 ${op} 실패, 지난 결과로 대신함:`, e instanceof Error ? e.message : e)
+      return stored.raw
+    }
+    throw e
+  }
 }
 
 async function fetchApi(op: string, params: Record<string, string>, key: string) {

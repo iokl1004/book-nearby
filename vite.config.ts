@@ -26,6 +26,6 @@ function apiDev(): Plugin {
 
 export default defineConfig(({ mode }) => {
   // 서버 전용 키(DATA4LIBRARY_KEY, KAKAO_REST_KEY)를 .env에서 읽어 개발용 API 함수에 넘긴다. 브라우저로는 나가지 않는다.
-  Object.assign(process.env, loadEnv(mode, process.cwd(), ['DATA4LIBRARY_', 'KAKAO_REST_']))
+  Object.assign(process.env, loadEnv(mode, process.cwd(), ['DATA4LIBRARY_', 'KAKAO_REST_', 'UPSTASH_', 'KV_']))
   return { plugins: [react(), apiDev()] }
 })
