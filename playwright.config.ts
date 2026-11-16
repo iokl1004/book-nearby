@@ -5,6 +5,6 @@ import { defineConfig } from '@playwright/test'
 export default defineConfig({
   testDir: 'e2e',
   testMatch: '*.e2e.ts', // vitest가 *.spec.ts를 단위 테스트로 집어 가지 않게 이름을 다르게 한다
-  use: { baseURL: 'http://localhost:5173', channel: 'chrome', locale: 'ko-KR', timezoneId: 'Asia/Seoul' },
+  use: { baseURL: 'http://localhost:5173', channel: 'chrome', locale: 'ko-KR', timezoneId: 'Asia/Seoul', viewport: { width: 1280, height: 900 } },
   webServer: { command: 'npm run dev -- --strictPort', url: 'http://localhost:5173', reuseExistingServer: true },
 })

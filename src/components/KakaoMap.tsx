@@ -4,7 +4,6 @@ import { KEY, loadSdk } from './kakaoSdk'
 import { el, infoCard, type Place } from './mapCard'
 import { layoutLabels } from './labelLayout'
 
-export { regionCodeAt } from './kakaoSdk'
 export type { Place } from './mapCard'
 
 const pin = (color: string) =>

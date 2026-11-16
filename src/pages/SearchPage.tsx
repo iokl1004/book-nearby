@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
-import { loadPopular, type Suggestion } from '../suggest'
+import type { Suggestion } from '../suggest'
+import popularTop from '../popular-top.json'
 import { Link, useSearchParams } from 'react-router-dom'
 import { searchBooks } from '../api'
 import BookInfo from '../components/BookInfo'
@@ -12,11 +13,9 @@ export default function SearchPage() {
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''
   const favorites = useFavorites()
-  // 첫 화면 추천: 인기 대출 도서 상위 5권 (검색창 미리보기와 같은 파일이라 한 번만 받는다)
-  const [top, setTop] = useState<Suggestion[]>([])
-  useEffect(() => {
-    if (!q) loadPopular().then((list) => setTop(list.slice(0, 5)))
-  }, [q])
+  // 첫 화면 추천: 인기 대출 도서 상위 5권. 화면 코드에 넣어 두어 바로 보인다
+  // (따로 받아 오면 늦게 나타나며 아래 내용을 밀어내서 화면이 덜컹였다 — Lighthouse CLS 0.17)
+  const top = popularTop as Suggestion[]
   // 20권씩. "검색 결과 더 보기"는 서버가 알려준 next로 다음 페이지를 받는다 (카카오 검색이라 정보나루 호출 없음)
   const search = useInfiniteQuery({
     queryKey: ['search', q],

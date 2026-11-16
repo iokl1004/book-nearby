@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { bookTitle, callApi, clearCache, publicationYear, QuotaError, safeUrl, toAvailability, toBooks, toLibraries } from './data4library.js'
+import { bookTitle, callApi, callApiTimed, clearCache, publicationYear, QuotaError, safeUrl, toAvailability, toBooks, toLibraries } from './data4library.js'
 import { fallbackHours, GET as libraries } from '../libraries.js'
 
 describe('표준데이터에 없는 도서관의 운영시간', () => {
@@ -94,6 +94,17 @@ describe('API 호출', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('캐시에서 꺼낸 응답은 처음 받아 온 시각을 그대로 알려준다 (몇 분 전 기준인지 표시용)', async () => {
+    vi.stubEnv('DATA4LIBRARY_KEY', 'test')
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ response: { result: { hasBook: 'Y', loanAvailable: 'N' } } })))
+    vi.useFakeTimers({ now: new Date('2026-11-16T10:00:00+09:00'), toFake: ['Date'] })
+    const params = { libCode: '9', isbn13: '9788900000009' }
+    const first = await callApiTimed('bookExist', params)
+    vi.setSystemTime(new Date('2026-11-16T10:12:00+09:00'))
+    const again = await callApiTimed('bookExist', params)
+    expect(again.at).toBe(first.at)
+    vi.useRealTimers()
+  })
   it('실패한 응답은 저장하지 않는다', async () => {
     vi.stubEnv('DATA4LIBRARY_KEY', 'test')
     let fail = true

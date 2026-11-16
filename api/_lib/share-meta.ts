@@ -26,7 +26,8 @@ export function withBookMeta(html: string, book: Book, pageUrl: string): string 
     ['og:title', title],
     ['og:description', description],
     ['og:url', pageUrl],
-    ...(book.image ? [['og:image', largeCover(book.image)] as [string, string]] : []),
+    // 표지가 없는 책은 사이트 대표 이미지로 (이미지가 없으면 카카오톡이 카드를 작게 보여준다)
+    ['og:image', book.image ? largeCover(book.image) : new URL('/og.png', pageUrl).href],
   ]
   const meta = tags.map(([p, c]) => `<meta property="${p}" content="${esc(c)}" />`).join('\n    ')
   return html

@@ -48,5 +48,7 @@ if (import.meta.main) {
   const list = toSuggestions(docs)
   mkdirSync(new URL('../public/data/', import.meta.url), { recursive: true })
   writeFileSync(new URL('../public/data/popular-books.json', import.meta.url), JSON.stringify(list))
+  // 첫 화면 추천 5권은 화면 코드에 같이 넣는다 (늦게 나타나며 아래 내용을 밀어내지 않게)
+  writeFileSync(new URL('../src/popular-top.json', import.meta.url), JSON.stringify(list.slice(0, 5)))
   console.log(`인기 도서 ${docs.length}권 → 미리보기 ${list.length}개 저장 완료`)
 }

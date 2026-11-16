@@ -2,7 +2,7 @@ import type { Availability, Book, Hours, Library } from '../api/_lib/types'
 import { districtOf } from '../api/_lib/names'
 
 export type { Book }
-export type LibraryWithAvailability = Library & Availability & { hours: Hours | null; distance?: number; placeId?: string | null; homepageShared?: boolean }
+export type LibraryWithAvailability = Library & Availability & { hours: Hours | null; distance?: number; placeId?: string | null; homepageShared?: boolean; checkedAt?: number }
 type ListResponse<T> = { mock: boolean; items: T[]; total?: number }
 export type Coords = { lat: number; lng: number }
 
@@ -18,12 +18,16 @@ export const searchBooks = (q: string, next?: string) =>
   getJson<ListResponse<Book> & { next: string | null }>(`/api/search?${new URLSearchParams({ q, ...(next && { next }) })}`)
 
 // 가까운 순으로 3곳씩. offset은 "도서관 더 보기"로 다음 묶음을 받을 때 쓴다
-export const getLibraries = (isbn: string, region: string, here: Coords | null, offset = 0) =>
-  getJson<ListResponse<LibraryWithAvailability> & { nextOffset: number | null }>(
+// filter.q: 이름·동네 검색어, filter.openOn: 그날("20261116") 여는 곳만
+export type LibraryFilter = { q?: string; openOn?: string }
+export const getLibraries = (isbn: string, region: string, here: Coords | null, offset = 0, filter: LibraryFilter = {}) =>
+  getJson<ListResponse<LibraryWithAvailability> & { matched: number; nextOffset: number | null }>(
     `/api/libraries?${new URLSearchParams({
       isbn, region,
       ...(here && { lat: String(here.lat), lng: String(here.lng) }),
       ...(offset > 0 && { offset: String(offset) }),
+      ...(filter.q && { q: filter.q }),
+      ...(filter.openOn && { openOn: filter.openOn }),
     })}`,
   )
 
@@ -55,6 +59,13 @@ export const homepageLabel = (lib: { homepageShared?: boolean; address: string }
 
 // 빈 정보는 빼고 " · "로 잇는다 ("사회평론 ·", "· undefined" 같은 모양이 안 나오게)
 export const joinInfo = (...parts: (string | undefined)[]) => parts.filter((p) => p?.trim()).join(' · ')
+
+// 대출 정보가 언제 기준인지: "방금", "12분 전", "1시간 전"
+export function checkedAgo(at: number, now = Date.now()) {
+  const minutes = Math.floor((now - at) / 60_000)
+  if (minutes < 1) return '방금'
+  return minutes < 60 ? `${minutes}분 전` : `${Math.floor(minutes / 60)}시간 전`
+}
 
 export const formatDistance = (m: number) => (m < 1000 ? `${m}m` : `${(m / 1000).toFixed(1)}km`)
 

@@ -21,7 +21,7 @@ describe('공유 미리보기 og 태그', () => {
     const out = withBookMeta(html, { ...book, title: '"><script>alert(1)</script>', image: '' }, 'https://x/book/1')
     expect(out).not.toContain('<script>')
     expect(out).toContain('&#34;&#62;&#60;script&#62;')
-    expect(out).not.toContain('og:image')
+    expect(out).toContain('<meta property="og:image" content="https://x/og.png" />') // 표지 없으면 대표 이미지
   })
   it('카카오 썸네일 주소에서 원본 표지를 꺼낸다', () => {
     expect(largeCover('https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F532683%3Ftimestamp%3D1'))

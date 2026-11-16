@@ -136,6 +136,8 @@ h1, h2, p { margin: 0; }
 .panel-head h2 { font-size: 1.05rem; }
 .summary { color: var(--muted); font-size: 0.9rem; margin-bottom: 8px; }
 .summary b { color: var(--accent); }
+.summary:has(+ .checked-at) { margin-bottom: 2px; }
+.checked-at { margin-bottom: 8px; font-size: 0.78rem; color: var(--muted); }
 select { padding: 8px 32px 8px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236f675d' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 12px center; appearance: none; font: inherit; font-size: 0.9rem; cursor: pointer; }
 
 .libraries { list-style: none; padding: 0; margin: 0; }
@@ -157,7 +159,7 @@ select { padding: 8px 32px 8px 12px; border: 1px solid var(--line); border-radiu
 .copy-btn { min-height: 34px; margin: -6px 0; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font: inherit; font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: border-color .15s, color .15s; }
 .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
 .lib-item .open-state { margin-top: 2px; }
-.lib-home { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.82rem; color: var(--accent); }
+.lib-home { max-width: 100%; padding: 6px 0; margin: -6px 0; /* 누르기 쉽게 터치 영역만 넓힘 */ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.82rem; color: var(--accent); }
 .lib-home:hover { text-decoration: underline; }
 .lib-home-tag { color: var(--muted); }
 .badge { flex: none; align-self: center; padding: 4px 10px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
@@ -165,6 +167,14 @@ select { padding: 8px 32px 8px 12px; border: 1px solid var(--line); border-radiu
 .badge.ok { background: var(--accent-soft); color: var(--accent); }
 .badge.no { background: var(--warn-soft); color: var(--warn); }
 
+/* 소장 도서관 거르기: 검색창 + "오늘 여는 곳만" */
+.lib-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 6px 0 8px; }
+.lib-filter form { display: flex; gap: 6px; flex: 1 1 220px; min-width: 0; }
+.lib-filter input[type='search'] { flex: 1; min-width: 0; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; font-size: 0.9rem; }
+.lib-filter input[type='search']:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+.lib-filter .btn-ghost { flex: none; padding: 8px 14px; font-size: 0.85rem; }
+.open-only { display: inline-flex; align-items: center; gap: 6px; font-size: 0.875rem; color: var(--ink); cursor: pointer; white-space: nowrap; }
+.open-only input { width: 16px; height: 16px; accent-color: var(--accent); }
 .locate-row { margin: 4px 0 10px; font-size: 0.85rem; color: var(--accent); font-weight: 600; }
 .btn-ghost { min-height: 44px; padding: 8px 14px; border: 1px solid var(--accent); border-radius: 999px; background: var(--accent-soft); color: var(--accent); font: inherit; font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: background .15s, transform .15s; }
 .btn-ghost:hover { background: #d3e6db; }
@@ -216,7 +226,15 @@ select { padding: 8px 32px 8px 12px; border: 1px solid var(--line); border-radiu
 
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
+/* 휴대폰 전용 지도 ↔ 목록 버튼 (넓은 화면은 지도와 목록이 나란히 보여서 숨김) */
+.view-toggle { display: none; }
 @media (max-width: 820px) {
+  .view-toggle {
+    display: inline-flex; align-items: center; gap: 6px; position: fixed; z-index: 20; left: 50%; bottom: max(16px, env(safe-area-inset-bottom));
+    transform: translateX(-50%); min-height: 44px; padding: 10px 18px; border: 0; border-radius: 999px;
+    background: var(--accent); color: #fff; font: inherit; font-size: 0.9rem; font-weight: 700; box-shadow: 0 6px 20px rgb(29 26 22 / 22%); cursor: pointer;
+  }
+  .panel { scroll-margin-top: calc(var(--header-h) + 12px); }
   /* 1fr은 "내용의 최소 너비보다 작아지지 않음"이라 긴 홈페이지 주소 때문에 휴대폰에서 426px로 넘쳤다 → minmax(0, 1fr) */
   .detail, .detail.single { grid-template-columns: minmax(0, 1fr); }
   .map-wrap { position: static; order: -1; }

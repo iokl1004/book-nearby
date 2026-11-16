@@ -1,9 +1,10 @@
-import { callApi, isMock, json, QUOTA_MESSAGE, QuotaError, toAvailability, toLibraries } from './_lib/data4library.js'
+import { callApi, callApiTimed, isMock, json, QUOTA_MESSAGE, QuotaError, toAvailability, toLibraries } from './_lib/data4library.js'
 import { matchHours, meters } from './_lib/match-hours.js'
 import { findPlaceId } from './_lib/kakao-place.js'
 import type { Hours, HoursRecord, Library } from './_lib/types.js'
 import { homepageKey } from './_lib/names.js'
 import { parseOperatingTime } from './_lib/operating-time.js'
+import { filterLibraries } from './_lib/library-filter.js'
 import hoursData from './_data/library-hours.json' with { type: 'json' }
 import sharedData from './_data/shared-homepages.json' with { type: 'json' }
 
@@ -31,7 +32,7 @@ export function fallbackHours(lib: Pick<Library, 'closed' | 'operatingTime'>): H
 const PAGE_SIZE = 3
 const MAX_PAGE_SIZE = 10
 
-// GET /api/libraries?isbn=9788...&region=11[&lat=37.56&lng=126.97][&offset=3][&limit=3]
+// GET /api/libraries?isbn=9788...&region=11[&lat=37.56&lng=126.97][&offset=3][&limit=3][&q=노원][&openOn=20261116]
 export async function GET(request: Request): Promise<Response> {
   const params = new URL(request.url).searchParams
   const isbn = params.get('isbn') ?? ''
@@ -43,29 +44,40 @@ export async function GET(request: Request): Promise<Response> {
   const here = params.has('lat') && lat >= 33 && lat <= 39 && lng >= 124 && lng <= 132 ? { lat, lng } : null
   const offset = Math.max(0, Math.floor(Number(params.get('offset')) || 0))
   const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, Math.floor(Number(params.get('limit')) || PAGE_SIZE)))
+  const q = (params.get('q') ?? '').trim().slice(0, 30)
+  const openOn = params.get('openOn') ?? ''
 
   try {
     // 정보나루는 가나다순으로 주기 때문에 전부 받아서 거리순으로 다시 정렬한다.
     // shortcut: 한 지역에 500곳 넘게 소장한 책은 앞 500곳만 본다.
     const all = toLibraries(await callApi('libSrchByBook', { isbn, region, pageSize: '500' }))
-    const nearest = here
+    const sorted = here
       ? all.map((lib) => ({ ...lib, distance: Math.round(meters(here, lib)) })).sort((a, b) => a.distance - b.distance)
       : all
+    // 이름·동네 검색과 "오늘 여는 곳만"은 대출 여부를 묻기 전에 걸러서 정보나루 호출이 늘지 않는다
+    const hoursCache = new Map<string, Hours | null>()
+    const hoursOf = (lib: Library) => {
+      if (!hoursCache.has(lib.code)) hoursCache.set(lib.code, matchHours(lib, HOURS) ?? fallbackHours(lib))
+      return hoursCache.get(lib.code)!
+    }
+    const nearest = q || openOn ? filterLibraries(sorted, { q, openOn }, hoursOf) : sorted
     const items = await Promise.all(
       nearest.slice(offset, offset + limit).map(async (lib) => {
-        const [exist, placeId] = await Promise.all([callApi('bookExist', { libCode: lib.code, isbn13: isbn }), findPlaceId(lib)])
+        const [exist, placeId] = await Promise.all([callApiTimed('bookExist', { libCode: lib.code, isbn13: isbn }), findPlaceId(lib)])
         return {
           ...lib,
-          ...toAvailability(exist),
+          ...toAvailability(exist.raw),
+          checkedAt: exist.at, // 대출 여부를 정보나루에서 확인한 시각 (캐시 때문에 최대 1시간 전일 수 있다)
           placeId,
           homepageShared: !!lib.homepage && SHARED_HOMEPAGES.has(homepageKey(lib.homepage)),
-          hours: matchHours(lib, HOURS) ?? fallbackHours(lib),
+          hours: hoursOf(lib),
         }
       }),
     )
     // nextOffset: 다음 묶음의 시작 위치, 더 없으면 null
-    const nextOffset = offset + limit < all.length ? offset + limit : null
-    return json({ mock: isMock(), total: all.length, items, nextOffset }, 200, 'max-age=3600, stale-while-revalidate=600')
+    // total: 지역 전체, matched: 거른 뒤 남은 수 (거르지 않으면 total과 같다)
+    const nextOffset = offset + limit < nearest.length ? offset + limit : null
+    return json({ mock: isMock(), total: all.length, matched: nearest.length, items, nextOffset }, 200, 'max-age=3600, stale-while-revalidate=600')
   } catch (e) {
     console.error(e)
     if (e instanceof QuotaError) return json({ error: QUOTA_MESSAGE }, 429)

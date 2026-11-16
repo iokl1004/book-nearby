@@ -23,12 +23,16 @@ const KEEP_SECONDS = 7 * 24 * 60 * 60
 const STALE_OK = new Set(['srchBooks', 'srchDtlList', 'libSrchByBook'])
 
 const MAX_ENTRIES = 2000
-const cache = new Map<string, { at: number; value: Promise<any> }>()
+type Fetched = { raw: any; at: number } // at: 정보나루에서 실제로 받아 온 시각 (캐시에서 꺼내도 그대로)
+const cache = new Map<string, { at: number; value: Promise<Fetched> }>()
 export const clearCache = () => cache.clear()
 
-export function callApi(op: string, params: Record<string, string>): Promise<any> {
+export const callApi = (op: string, params: Record<string, string>): Promise<any> => callApiTimed(op, params).then((r) => r.raw)
+
+// 응답과 함께 "언제 받아 온 값인지"도 돌려준다. 대출 여부가 몇 분 전 기준인지 화면에 보여주는 데 쓴다
+export function callApiTimed(op: string, params: Record<string, string>): Promise<Fetched> {
   const key = process.env.DATA4LIBRARY_KEY
-  if (!key) return Promise.resolve(MOCK[op](params))
+  if (!key) return Promise.resolve({ raw: MOCK[op](params), at: Date.now() })
 
   const id = `${op}?${new URLSearchParams(params)}`
   const hit = cache.get(id)
@@ -42,18 +46,18 @@ export function callApi(op: string, params: Record<string, string>): Promise<any
   return value
 }
 
-async function fetchShared(op: string, params: Record<string, string>, key: string, id: string) {
+async function fetchShared(op: string, params: Record<string, string>, key: string, id: string): Promise<Fetched> {
   const sharedKey = `d4l:${id}`
   const stored = await getShared(sharedKey)
-  if (stored && Date.now() - stored.at < (TTL[op] ?? 0)) return stored.raw
+  if (stored && Date.now() - stored.at < (TTL[op] ?? 0)) return stored
   try {
     const raw = await fetchApi(op, params, key)
     await setShared(sharedKey, raw, KEEP_SECONDS)
-    return raw
+    return { raw, at: Date.now() }
   } catch (e) {
     if (stored && STALE_OK.has(op)) {
       console.warn(`정보나루 ${op} 실패, 지난 결과로 대신함:`, e instanceof Error ? e.message : e)
-      return stored.raw
+      return stored
     }
     throw e
   }

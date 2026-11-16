@@ -1,0 +1,40 @@
+# 데이터 자동 갱신: 매달 1일 오전 9시(한국 시간)에 인기 대출 도서와 공휴일을 다시 받아,
+# 바뀐 게 있으면 커밋한다. 커밋이 올라가면 Vercel이 자동으로 다시 배포한다.
+# 필요한 비밀값(저장소 Settings → Secrets and variables → Actions): DATA4LIBRARY_KEY, DATA_GO_KR_KEY
+name: 데이터 갱신
+
+on:
+  schedule:
+    - cron: '0 0 1 * *' # UTC 1일 00:00 = 한국 시간 1일 오전 9시
+  workflow_dispatch: # Actions 탭에서 손으로도 실행할 수 있게
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: 인기 대출 도서 (정보나루 5건 호출)
+        run: npm run sync:popular
+        env:
+          DATA4LIBRARY_KEY: ${{ secrets.DATA4LIBRARY_KEY }}
+      - name: 공휴일 (특일 정보 2건 호출)
+        run: npm run sync:holidays
+        env:
+          DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
+      - name: 바뀐 데이터 커밋
+        run: |
+          git add public/data/popular-books.json src/popular-top.json api/_data/holidays.json
+          if git diff --cached --quiet; then echo "바뀐 데이터 없음"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "데이터 자동 갱신: 인기 대출 도서·공휴일 ($(TZ=Asia/Seoul date +%Y-%m-%d))"
+          git push
