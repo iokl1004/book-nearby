@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { districtOf, homepageKey, sharedHomepages, shortName } from './names.js'
+import { districtOf, homepageKey, regionCodeOf, sharedHomepages, shortName } from './names.js'
+
+describe('시·도 이름 → 지역 코드', () => {
+  it.each([
+    ['서울특별시', '11'], ['경기도', '31'], ['강원특별자치도', '32'], ['강원도', '32'],
+    ['충청북도', '33'], ['충청남도', '34'], ['전북특별자치도', '35'], ['전라남도', '36'],
+    ['경상북도', '37'], ['경상남도', '38'], ['세종특별자치시', '29'], ['제주특별자치도', '39'],
+  ])('%s → %s', (name, code) => {
+    expect(regionCodeOf(name)).toBe(code)
+  })
+  it('모르는 이름은 null', () => {
+    expect(regionCodeOf('도쿄도')).toBeNull()
+  })
+})
 
 describe('홈페이지 주소', () => {
   it('같은 사이트의 다른 표기를 하나로 맞춘다', () => {

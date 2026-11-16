@@ -3,7 +3,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { getBook, getLibraries, getRegionCounts, getRoundedPosition, REGIONS, type Book, type Coords } from '../api'
 import BookInfo from '../components/BookInfo'
-import KakaoMap, { type Place } from '../components/KakaoMap'
+import KakaoMap, { regionCodeAt, type Place } from '../components/KakaoMap'
 import Cover from '../components/Cover'
 import LibraryItem from '../components/LibraryItem'
 import { openStatus } from '../hours'
@@ -54,13 +54,21 @@ export default function BookPage() {
   }, [libs.data])
   const remaining = data ? (data.total ?? 0) - data.items.length : 0
 
-  const locate = () => {
+  // 위치를 받으면 그 위치의 시·도로 지역도 맞춘다 (경기도에 있는데 "서울"로 찾는 일이 없게).
+  // 지역과 위치를 한 번에 바꿔서 도서관 조회도 한 번만 일어난다.
+  const locate = async () => {
     setLocating(true)
     setLocationError('')
-    getRoundedPosition()
-      .then(setHere)
-      .catch((e: Error) => setLocationError(e.message))
-      .finally(() => setLocating(false))
+    try {
+      const pos = await getRoundedPosition()
+      const code = await regionCodeAt(pos.lat, pos.lng)
+      if (code) setRegion(code)
+      setHere(pos)
+    } catch (e) {
+      setLocationError((e as Error).message)
+    } finally {
+      setLocating(false)
+    }
   }
   const places = useMemo<Place[]>(
     () => (data?.items ?? []).map((lib) => ({
@@ -147,7 +155,7 @@ export default function BookPage() {
           </div>
 
           {noLibraries ? null : here ? (
-            <p className="locate-row">📍 내 위치에서 가까운 순</p>
+            <p className="locate-row">📍 내 위치({regionName})에서 가까운 순</p>
           ) : (
             <div className="locate-row">
               <button type="button" className="btn-ghost" onClick={locate} disabled={locating}>
