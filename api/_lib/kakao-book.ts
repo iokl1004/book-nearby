@@ -38,9 +38,9 @@ export function toKakaoBook(doc: KakaoDoc): Book | null {
   }
 }
 
-export type KakaoTarget = 'title' | 'person'
+export type KakaoTarget = 'title' | 'person' | 'isbn'
 
-// target: title(제목) / person(저자·옮긴이) / 비우면 전체. page는 1부터 (카카오 최대 50)
+// target: title(제목) / person(저자·옮긴이) / isbn / 비우면 전체. page는 1부터 (카카오 최대 50)
 export async function searchKakaoBooks(query: string, target?: KakaoTarget, page = 1): Promise<{ total: number; isEnd: boolean; books: Book[] }> {
   const qs = new URLSearchParams({ query, sort: 'accuracy', size: '20', page: String(page), ...(target && { target }) })
   const res = await fetch(`${ENDPOINT}?${qs}`, { headers: { Authorization: `KakaoAK ${process.env.KAKAO_REST_KEY}` } })

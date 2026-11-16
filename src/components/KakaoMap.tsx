@@ -1,57 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { formatDistance, homepageLabel } from '../api'
-import type { Status } from '../hours'
-import { districtOf, regionCodeOf, shortName } from '../../api/_lib/names'
+import { shortName } from '../../api/_lib/names'
+import { KEY, loadSdk } from './kakaoSdk'
+import { el, infoCard, type Place } from './mapCard'
 import { layoutLabels } from './labelLayout'
 
-declare global {
-  interface Window { kakao: any }
-}
-
-const KEY = import.meta.env.VITE_KAKAO_MAP_KEY as string | undefined
-let sdk: Promise<void> | undefined
-
-// libraries=services: 좌표 → 행정구역 변환(지역 자동 선택)에 쓴다. 브라우저에서 처리돼 서버 호출이 늘지 않는다
-export function loadSdk() {
-  sdk ??= new Promise((resolve, reject) => {
-    const script = document.createElement('script')
-    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KEY}&libraries=services&autoload=false`
-    script.onload = () => window.kakao.maps.load(() => resolve())
-    script.onerror = () => reject(new Error('카카오맵을 불러오지 못했어요. 키와 등록 도메인을 확인해 주세요.'))
-    document.head.append(script)
-  })
-  return sdk
-}
-
-// 좌표가 속한 시·도의 정보나루 지역 코드 ("경기도" → "31"). 알 수 없으면 null
-export async function regionCodeAt(lat: number, lng: number): Promise<string | null> {
-  if (!KEY) return null
-  try {
-    await loadSdk()
-    const geocoder = new window.kakao.maps.services.Geocoder()
-    const name = await new Promise<string | null>((resolve) =>
-      geocoder.coord2RegionCode(lng, lat, (result: { region_1depth_name: string }[], status: string) =>
-        resolve(status === window.kakao.maps.services.Status.OK ? result[0]?.region_1depth_name ?? null : null)))
-    return name ? regionCodeOf(name) : null
-  } catch {
-    return null // 지역을 못 알아내도 위치 정렬은 그대로 동작
-  }
-}
-
-export type Place = {
-  code: string
-  name: string
-  lat: number
-  lng: number
-  address: string
-  tel: string
-  homepage: string
-  homepageShared?: boolean
-  placeId?: string | null
-  available: boolean
-  status: Status
-  distance?: number
-}
+export { regionCodeAt } from './kakaoSdk'
+export type { Place } from './mapCard'
 
 const pin = (color: string) =>
   `data:image/svg+xml,${encodeURIComponent(
@@ -59,68 +13,6 @@ const pin = (color: string) =>
   )}`
 const PIN_OK = pin('#1f5c45')
 const PIN_NO = pin('#a63d2f')
-
-// 도서관 이름 등은 외부 API 값이라 innerHTML이 아니라 textContent로 넣는다.
-function el(tag: string, className: string, text?: string) {
-  const node = document.createElement(tag)
-  node.className = className
-  if (text) node.textContent = text
-  return node
-}
-
-function infoCard(place: Place, onClose: () => void) {
-  const card = el('div', 'map-card')
-  const head = el('div', 'map-card-head')
-  head.append(el('strong', '', place.name))
-  const close = el('button', 'map-card-close', '×') as HTMLButtonElement
-  close.type = 'button'
-  close.ariaLabel = '닫기'
-  close.onclick = onClose
-  head.append(close)
-  card.append(head)
-  if (place.distance != null) card.append(el('span', 'meta', `${formatDistance(place.distance)} · ${place.address}`))
-  else card.append(el('span', 'meta', place.address))
-  if (place.tel) {
-    // 휴대폰에서 누르면 바로 전화가 걸린다
-    const tel = el('a', 'map-card-tel', `☎ ${place.tel}`) as HTMLAnchorElement
-    tel.href = `tel:${place.tel.replace(/[^\d+]/g, '')}`
-    card.append(tel)
-  }
-  const row = el('div', 'map-card-row')
-  row.append(el('span', place.available ? 'badge ok' : 'badge no', place.available ? '대출 가능' : '대출 중'))
-  const status = el('span', `open-state ${place.status.kind}`)
-  status.append(el('b', '', place.status.label))
-  row.append(status)
-  card.append(row)
-  const links = el('div', 'map-card-links')
-  links.append(
-    externalLink('카카오맵 길찾기 →', `https://map.kakao.com/link/to/${encodeURIComponent(place.name)},${place.lat},${place.lng}`),
-    // 장소 ID를 찾았으면 그 장소가 선택된 화면으로, 못 찾았으면 검색 결과로 연다
-    externalLink('카카오맵 정보보기 →', place.placeId
-      ? `https://map.kakao.com/link/map/${place.placeId}`
-      : `https://map.kakao.com/link/search/${encodeURIComponent(searchQuery(place))}`),
-  )
-  if (place.homepage) links.append(externalLink(`${homepageLabel(place)} →`, place.homepage))
-  card.append(links)
-  return card
-}
-
-function externalLink(text: string, href: string) {
-  const a = el('a', 'map-card-link', text) as HTMLAnchorElement
-  a.href = href
-  a.target = '_blank'
-  a.rel = 'noopener noreferrer'
-  return a
-}
-
-// 장소 ID를 못 찾았을 때 쓰는 검색어.
-// 카카오맵은 "강남구립…"처럼 운영 기관이 붙은 이름으로는 못 찾는 경우가 많아서 짧은 이름을 쓰고,
-// 같은 이름의 도서관이 여러 지역에 있을 수 있어서 주소의 구/시를 앞에 붙인다.
-export function searchQuery(place: Pick<Place, 'name' | 'address'>) {
-  const name = shortName(place.name)
-  const district = districtOf(place.address)
-  return name.includes(district) ? name : `${district} ${name}`.trim()
-}
 
 type Props = { places: Place[]; selected: string | null; onSelect: (code: string | null) => void }
 

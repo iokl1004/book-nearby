@@ -1,4 +1,4 @@
-import { useState, type MouseEvent } from 'react'
+import { useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
 import { formatDistance, homepageLabel, type LibraryWithAvailability } from '../api'
 import { openStatus } from '../hours'
 
@@ -8,19 +8,35 @@ function OpenState({ lib }: { lib: LibraryWithAvailability }) {
   const { hours } = lib
   const status = openStatus(hours)
   const known = status.kind !== 'unknown'
+  // 운영시간 원문이 긴 곳("평일 09:00~22:00(자료실), 09:00~18:00(어린이실)…")은 3줄까지만 보여주고 "더 보기"로 편다
+  const box = useRef<HTMLDivElement>(null)
+  const [long, setLong] = useState(false)
+  const [open, setOpen] = useState(false)
+  // shortcut: 처음 그릴 때만 넘침을 잰다. 창 크기를 바꿔도 다시 재지 않음(필요하면 ResizeObserver)
+  useLayoutEffect(() => {
+    const el = box.current
+    if (el) setLong(el.scrollHeight > el.clientHeight + 1)
+  }, [hours])
   return (
-    <>
-      <span className={`open-state ${status.kind}`}>
-        {known
-          ? <b>{status.label}</b>
-          : hours?.text
-            ? <span className="hours-text">🕘 {hours.text}</span>
-            : <b>{lib.tel ? '운영시간은 전화로 확인해 주세요' : '운영시간은 도서관에 확인해 주세요'}</b>}
-        {hours?.closeDay && <> · 휴관 {hours.closeDay}</>}
-      </span>
-      {/* 시간은 해석했어도 원문이 따로 있으면(오늘 휴관 등) 함께 보여준다 */}
-      {known && hours?.text && <span className="open-state hours-text">🕘 {hours.text}</span>}
-    </>
+    <div className="open-wrap">
+      <div ref={box} className={open ? 'open-lines' : 'open-lines folded'}>
+        <span className={`open-state ${status.kind}`}>
+          {known
+            ? <b>{status.label}</b>
+            : hours?.text
+              ? <span className="hours-text">🕘 {hours.text}</span>
+              : <b>{lib.tel ? '운영시간은 전화로 확인해 주세요' : '운영시간은 도서관에 확인해 주세요'}</b>}
+          {hours?.closeDay && <> · 휴관 {hours.closeDay}</>}
+        </span>
+        {/* 시간은 해석했어도 원문이 따로 있으면(오늘 휴관 등) 함께 보여준다 */}
+        {known && hours?.text && <span className="open-state hours-text">🕘 {hours.text}</span>}
+      </div>
+      {long && (
+        <button type="button" className="fold-btn" aria-expanded={open} onClick={(e) => { stop(e); setOpen(!open) }}>
+          {open ? '접기 ▲' : '운영시간 더 보기 ▼'}
+        </button>
+      )}
+    </div>
   )
 }
 

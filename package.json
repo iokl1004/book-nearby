@@ -9,6 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
+    "e2e": "playwright test",
     "sync:hours": "node --env-file-if-exists=.env scripts/sync-library-hours.ts",
     "sync:homepages": "node --env-file-if-exists=.env scripts/sync-shared-homepages.ts",
     "sync:popular": "node --env-file-if-exists=.env scripts/sync-popular-books.ts",
@@ -21,6 +22,7 @@
     "react-router-dom": "^7.18.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

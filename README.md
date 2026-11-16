@@ -24,6 +24,8 @@
 - **내 위치로 지역 자동 선택**: 위치를 허용하면 그 시·도로 지역을 맞추고 가까운 순으로 보여줘요(카카오맵 SDK로 브라우저에서 처리).
 - **더 보기**: 도서관은 3곳씩, 검색 결과는 20권씩 이어서 불러와요.
 - **찜하기**: 로그인 없이 이 브라우저에 저장하고, 첫 화면에서 바로 열 수 있어요.
+- **공휴일 휴관**: 공휴일·명절에 쉬는 도서관은 "오늘 휴관 · 추석"처럼 이유와 함께 알려줘요.
+- **공유 미리보기 카드**: 책 상세 링크를 카카오톡 등에 보내면 책 제목과 표지가 보여요.
 
 <br>
 
@@ -37,7 +39,7 @@
 | 지도 | 카카오맵 JavaScript SDK, 카카오 로컬 API |
 | 책 검색 | 카카오 책 검색 API (실패 시 도서관 정보나루) |
 | 데이터 | 도서관 정보나루 Open API, 공공데이터포털 전국도서관표준데이터 |
-| 테스트 | Vitest (16개 파일, 147개 테스트) |
+| 테스트 | Vitest 단위 테스트 181개, Playwright 화면 클릭 테스트(E2E) 5개 |
 
 <br>
 
@@ -135,16 +137,17 @@ flowchart LR
 cp .env.example .env   # 키 입력
 npm install
 npm run dev            # http://localhost:5173 (api/ 서버 함수도 함께 동작)
-npm test
+npm test               # 단위 테스트
+npm run e2e            # 화면 클릭 테스트 (설치된 Chrome 사용, API는 가짜 응답)
 ```
 
 | 환경 변수 | 용도 | 필수 |
 |---|---|---|
 | `VITE_KAKAO_MAP_KEY` | 카카오맵 JavaScript 키 (브라우저용, 등록 도메인에서만 동작) | ✅ |
 | `DATA4LIBRARY_KEY` | 도서관 정보나루. 비어 있으면 목업 데이터로 동작 | ✅ |
-| `KAKAO_REST_KEY` | 카카오 로컬 API (도서관 장소 ID) | 선택 |
+| `KAKAO_REST_KEY` | 카카오 책 검색·로컬 API (검색, 도서관 장소 ID, 공유 카드) | 선택 |
 | `UPSTASH_REDIS_REST_URL` · `_TOKEN` | 공용 캐시. 없으면 메모리 캐시만 사용 (Vercel 연동 시 `KV_*`도 인식) | 선택 |
-| `DATA_GO_KR_KEY` | 운영시간 동기화 스크립트 전용 | 스크립트만 |
+| `DATA_GO_KR_KEY` | 운영시간·공휴일 동기화 스크립트 전용 | 스크립트만 |
 
 **데이터 동기화**
 ```bash
@@ -163,14 +166,17 @@ api/                  Vercel 서버 함수 (파일 하나 = API 주소 하나)
   search.ts           도서 검색 (제목·저자 동시 검색)
   libraries.ts        소장 도서관 + 대출 여부 + 운영시간 + 장소 ID
   regions.ts          다른 지역 소장 현황
-  book.ts             ISBN으로 책 정보 (공유 링크용)
+  book.ts             ISBN으로 책 정보 (상세 화면 분야)
+  share.ts            /book/:isbn 주소에 책 제목·표지 og 태그를 넣은 HTML (공유 미리보기)
   _lib/               공용 코드 (밑줄 폴더는 주소로 공개되지 않음)
   _data/              미리 수집한 운영시간·통합 홈페이지 JSON
 scripts/              데이터 동기화 스크립트
+e2e/                  화면 클릭 테스트 (Playwright)
 src/
   pages/              검색·상세 화면
-  components/         지도, 검색창, 도서관 항목, 책 정보
-  hours.ts            휴관일 해석 · 오늘 운영 상태
+  components/         지도(KakaoMap · kakaoSdk · mapCard), 검색창, 도서관 항목, 책 정보
+  hours.ts            휴관일 해석 · 공휴일 · 오늘 운영 상태
+  holidays.json       공휴일 목록 (sync:holidays)
   suggest.ts          검색 미리보기 · 최근 검색어
 public/data/          인기 도서 목록 (검색 미리보기용)
 ```
@@ -183,3 +189,6 @@ public/data/          인기 도서 목록 (검색 미리보기용)
 - [x] 내 위치로 지역 자동 선택
 - [x] 법정공휴일 반영 (공공데이터포털 특일 정보)
 - [x] 도서관·검색 결과 더 보기, 찜 기능
+- [x] 긴 운영시간 문구 접기, 지도 코드 나누기, 화면 클릭 테스트(E2E)
+- [x] 공유 미리보기 카드 (카카오톡에 책 제목·표지)
+- [x] 탭 아이콘 📚

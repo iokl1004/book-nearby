@@ -179,6 +179,11 @@ select { padding: 8px 32px 8px 12px; border: 1px solid var(--line); border-radiu
 .open-state.before b { color: #8a6116; }
 .open-state.unknown b { color: #8a6116; }
 .hours-text { color: var(--ink); }
+/* 긴 운영시간 원문은 3줄까지만. 버튼으로 펼친다 */
+.open-lines { font-size: 0.82rem; }
+.open-lines.folded { max-height: calc(3lh + 6px); overflow: hidden; }
+.fold-btn { padding: 4px 0; margin: -2px 0 -4px; border: 0; background: none; color: var(--accent); font: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+.fold-btn:hover { text-decoration: underline; }
 
 .map-wrap { position: sticky; top: calc(var(--header-h) + 24px); scroll-margin-top: calc(var(--header-h) + 16px); /* 고정 헤더에 가리지 않게 */ }
 .map { width: 100%; height: min(70vh, 560px); border-radius: var(--radius); border: 1px solid var(--line); overflow: hidden; background: #ece6db; }

@@ -7,7 +7,7 @@ function apiDev(): Plugin {
     name: 'api-dev',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
-        const url = new URL(req.url ?? '/', 'http://localhost')
+        const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`) // 실제 포트를 써야 api/share.ts가 index.html을 받아 온다
         const name = url.pathname.match(/^\/api\/(\w+)$/)?.[1]
         if (!name) return next()
         try {

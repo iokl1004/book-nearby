@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { searchQuery } from './KakaoMap'
+import { searchQuery } from './mapCard'
 import { homepageLabel, joinInfo } from '../api'
 
 describe('책 정보 잇기', () => {
