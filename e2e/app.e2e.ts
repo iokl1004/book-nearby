@@ -118,7 +118,9 @@ test('소장 도서관을 이름으로 찾고, 오늘 여는 곳만 보고, 조�
   await expect(page.locator('.summary')).toContainText('5곳 중 ‘4’ 1곳')
 
   await box.fill('')
-  await page.getByLabel('오늘 여는 곳만').check()
+  // 체크 상태는 주소(?open=1)를 따라가서 눌린 직후 한 박자 늦게 바뀐다 → 누른 뒤 체크될 때까지 기다린다
+  await page.getByLabel('오늘 여는 곳만').click()
+  await expect(page.getByLabel('오늘 여는 곳만')).toBeChecked()
   await expect(page.locator('.summary')).toContainText('오늘 여는 곳 4곳')
   await expect(page.getByRole('button', { name: '테스트도서관 2' })).toHaveCount(0)
   await page.screenshot({ path: 'test-results/library-filter.png', clip: { x: 0, y: 0, width: 1280, height: 720 } })
