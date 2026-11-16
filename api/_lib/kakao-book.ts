@@ -38,14 +38,17 @@ export function toKakaoBook(doc: KakaoDoc): Book | null {
   }
 }
 
-// target: title(제목) / person(저자·옮긴이) / 비우면 전체
-export async function searchKakaoBooks(query: string, target?: 'title' | 'person'): Promise<{ total: number; books: Book[] }> {
-  const qs = new URLSearchParams({ query, sort: 'accuracy', size: '20', ...(target && { target }) })
+export type KakaoTarget = 'title' | 'person'
+
+// target: title(제목) / person(저자·옮긴이) / 비우면 전체. page는 1부터 (카카오 최대 50)
+export async function searchKakaoBooks(query: string, target?: KakaoTarget, page = 1): Promise<{ total: number; isEnd: boolean; books: Book[] }> {
+  const qs = new URLSearchParams({ query, sort: 'accuracy', size: '20', page: String(page), ...(target && { target }) })
   const res = await fetch(`${ENDPOINT}?${qs}`, { headers: { Authorization: `KakaoAK ${process.env.KAKAO_REST_KEY}` } })
   if (!res.ok) throw new Error(`카카오 책 검색 실패 (${res.status})`)
-  const body = (await res.json()) as { meta?: { total_count?: number }; documents?: KakaoDoc[] }
+  const body = (await res.json()) as { meta?: { total_count?: number; is_end?: boolean }; documents?: KakaoDoc[] }
   return {
     total: body.meta?.total_count ?? 0,
+    isEnd: body.meta?.is_end ?? true,
     books: (body.documents ?? []).map(toKakaoBook).filter((b): b is Book => b !== null),
   }
 }

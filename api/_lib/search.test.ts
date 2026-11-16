@@ -57,23 +57,28 @@ describe('도서 검색 (정보나루, 카카오 키가 없을 때)', () => {
 // 책마다 고유한 ISBN13을 붙인다 (같은 책이 양쪽에 나오면 같은 ISBN → 중복 제거 확인용)
 const isbnOf = (bookTitle: string) => `978${String([...bookTitle].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 1e10, 7)).padStart(10, '0')}`
 
-function fakeKakao(results: Record<'title' | 'person' | 'all', { total: number; titles: string[] }>) {
+type FakeResult = { total: number; titles: string[]; isEnd?: boolean }
+function fakeKakao(results: Record<'title' | 'person' | 'all', FakeResult>) {
   const calls: string[] = []
   vi.stubGlobal('fetch', async (url: string) => {
     if (!url.startsWith('https://dapi.kakao.com')) {
       calls.push('library')
       return new Response('', { status: 500 })
     }
-    const target = (new URL(url).searchParams.get('target') ?? 'all') as 'title' | 'person' | 'all'
-    calls.push(target)
+    const params = new URL(url).searchParams
+    const target = (params.get('target') ?? 'all') as 'title' | 'person' | 'all'
+    const page = params.get('page') ?? '1'
+    calls.push(page === '1' ? target : `${target}:${page}`)
     const r = results[target]
     const documents = r.titles.map((t) => ({
-      title: t, authors: ['저자'], translators: [], publisher: '출판사', datetime: '2020-01-01', isbn: `x ${isbnOf(t)}`, thumbnail: '',
+      title: page === '1' ? t : `${t} (${page}쪽)`, authors: ['저자'], translators: [], publisher: '출판사', datetime: '2020-01-01', isbn: `x ${isbnOf(page === '1' ? t : `${t}${page}`)}`, thumbnail: '',
     }))
-    return new Response(JSON.stringify({ meta: { total_count: r.total }, documents }))
+    return new Response(JSON.stringify({ meta: { total_count: r.total, is_end: r.isEnd ?? true }, documents }))
   })
   return calls
 }
+
+const body = async (query: string) => (await (await search(new Request(`http://x/api/search?${query}`))).json()) as any
 
 describe('도서 검색 (카카오 우선)', () => {
   beforeEach(() => {
@@ -105,5 +110,42 @@ describe('도서 검색 (카카오 우선)', () => {
       ? new Response('', { status: 500 })
       : new Response(JSON.stringify({ response: { numFound: 1, docs: [{ doc: { isbn13: '1', bookname: '토지' } }] } })))
     expect(await titles('토지')).toEqual(['토지'])
+  })
+})
+
+describe('검색 결과 더 보기', () => {
+  beforeEach(() => {
+    vi.stubEnv('KAKAO_REST_KEY', 'kakao')
+    vi.stubEnv('DATA4LIBRARY_KEY', 'test')
+  })
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+    clearCache()
+  })
+
+  it('결과가 더 많은 쪽의 다음 페이지를 next로 알려준다', async () => {
+    fakeKakao({ title: { total: 964, titles: ['어린 왕자'], isEnd: false }, person: { total: 0, titles: [] }, all: { total: 0, titles: [] } })
+    expect((await body('q=어린 왕자')).next).toBe('title:2')
+  })
+
+  it('next를 주면 그쪽의 다음 페이지만 부른다', async () => {
+    const calls = fakeKakao({ title: { total: 260, titles: [] }, person: { total: 1725, titles: ['데미안'], isEnd: false }, all: { total: 0, titles: [] } })
+    const b = await body('q=헤르만 헤세&next=person:2')
+    expect(calls).toEqual(['person:2'])
+    expect(b.items.map((x: any) => x.title)).toEqual(['데미안 (2쪽)'])
+    expect(b.next).toBe('person:3')
+  })
+
+  it('마지막 페이지면 next가 없다', async () => {
+    fakeKakao({ title: { total: 1, titles: ['토지'], isEnd: true }, person: { total: 0, titles: [] }, all: { total: 0, titles: [] } })
+    expect((await body('q=토지')).next).toBeNull()
+  })
+
+  it('잘못된 next는 400', async () => {
+    fakeKakao({ title: { total: 0, titles: [] }, person: { total: 0, titles: [] }, all: { total: 0, titles: [] } })
+    for (const bad of ['next=title:1', 'next=title:99', 'next=hack:2', 'next=title']) {
+      expect((await search(new Request(`http://x/api/search?q=a&${bad}`))).status).toBe(400)
+    }
   })
 })

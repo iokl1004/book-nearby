@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo, useState } from 'react'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { loadPopular, type Suggestion } from '../suggest'
 import { Link, useSearchParams } from 'react-router-dom'
 import { searchBooks } from '../api'
@@ -15,11 +15,23 @@ export default function SearchPage() {
   useEffect(() => {
     if (!q) loadPopular().then((list) => setTop(list.slice(0, 5)))
   }, [q])
-  const { data, isFetching, error } = useQuery({
+  // 20권씩. "검색 결과 더 보기"는 서버가 알려준 next로 다음 페이지를 받는다 (카카오 검색이라 정보나루 호출 없음)
+  const search = useInfiniteQuery({
     queryKey: ['search', q],
-    queryFn: () => searchBooks(q),
+    queryFn: ({ pageParam }) => searchBooks(q, pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.next ?? undefined,
     enabled: q.length > 0,
   })
+  const { isFetching, error } = search
+  // 페이지가 바뀌며 같은 책이 다시 나올 수 있어 ISBN으로 한 번만
+  const data = useMemo(() => {
+    const pages = search.data?.pages
+    if (!pages) return undefined
+    const seen = new Set<string>()
+    const items = pages.flatMap((p) => p.items).filter((b) => !seen.has(b.isbn13) && seen.add(b.isbn13))
+    return { mock: pages[0].mock, items }
+  }, [search.data])
 
   const form = <SearchBox initial={q} onSearch={(value) => setParams({ q: value })} autoFocus={!q} />
 
@@ -84,6 +96,11 @@ export default function SearchPage() {
           </li>
         ))}
       </ul>
+      {search.hasNextPage && (
+        <button type="button" className="btn-ghost more-btn" onClick={() => search.fetchNextPage()} disabled={search.isFetchingNextPage}>
+          {search.isFetchingNextPage ? '불러오는 중…' : '검색 결과 더 보기'}
+        </button>
+      )}
     </>
   )
 }

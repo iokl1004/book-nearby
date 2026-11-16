@@ -13,8 +13,9 @@ async function getJson<T>(url: string): Promise<T> {
   return body
 }
 
-export const searchBooks = (q: string) =>
-  getJson<ListResponse<Book>>(`/api/search?${new URLSearchParams({ q })}`)
+// next: 서버가 알려준 "다음 페이지" 표시 (예: "title:2"). 더 보기 때 그대로 돌려준다
+export const searchBooks = (q: string, next?: string) =>
+  getJson<ListResponse<Book> & { next: string | null }>(`/api/search?${new URLSearchParams({ q, ...(next && { next }) })}`)
 
 // 가까운 순으로 3곳씩. offset은 "도서관 더 보기"로 다음 묶음을 받을 때 쓴다
 export const getLibraries = (isbn: string, region: string, here: Coords | null, offset = 0) =>
