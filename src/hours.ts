@@ -1,4 +1,5 @@
 import type { Hours, Span } from '../api/_lib/types'
+import HOLIDAYS from './holidays.json'
 
 // 전국도서관표준데이터의 휴관일 표기("금+1월1일+설 연휴", "셋째 주 월", "매주토, 일요일")를
 // 오늘 기준으로 해석하고 운영 상태를 만든다.
@@ -54,15 +55,32 @@ const toMin = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slic
 
 export type Status = { kind: 'open' | 'before' | 'after' | 'closed' | 'unknown'; label: string }
 
-// shortcut: 법정공휴일·명절 휴관은 반영하지 않음(휴관일 원문을 함께 보여줌). 정확히 하려면 특일 정보 API 추가.
+// 휴관일 원문이 오늘 공휴일(이름)에 문을 닫는다고 하는지. 공휴일 목록은 npm run sync:holidays로 받는다.
+export function closedForHoliday(closeDay: string, name: string, day: number): boolean {
+  const t = closeDay.replace(/\s/g, '')
+  if (/공휴일|국경일|법정휴일/.test(t)) {
+    // "일요일을 제외한 법정공휴일": 일요일 공휴일은 평소 일요일처럼 연다. 단 "겹치는 경우 휴관"이면 닫는다.
+    const exceptSunday = /일(요일)?을?제외/.test(t) && !/겹치|공휴일인경우휴관/.test(t)
+    return !(day === 0 && exceptSunday)
+  }
+  if (name.includes('설날')) return /설|구정|명절/.test(t)
+  if (name.includes('추석')) return /추석|명절/.test(t)
+  if (name === '1월1일') return /1월1일|신정/.test(t)
+  if (name.includes('선거')) return /선거/.test(t)
+  return false
+}
+
 export function openStatus(hours: Hours | null | undefined, now = new Date()): Status {
   if (!hours) return { kind: 'unknown', label: '운영시간 확인 필요' }
   const seoul = seoulParts(now)
+  const holiday = (HOLIDAYS as Record<string, string>)[seoul.ymd]
+  if (holiday && closedForHoliday(hours.closeDay, holiday, seoul.day)) return { kind: 'closed', label: `오늘 휴관 · ${holiday}` }
   if (isClosedOn(parseCloseDay(hours.closeDay), seoul)) return { kind: 'closed', label: '오늘 휴관' }
   // 시간을 해석하지 못한 경우 (정보나루 글자로 대신 채운 곳). 화면에서 원문이나 전화 안내를 보여준다.
   if (!hours.weekday && !hours.saturday && !hours.holiday) return { kind: 'unknown', label: '운영시간 확인 필요' }
 
-  const span: Span = seoul.day === 6 ? hours.saturday : seoul.day === 0 ? hours.holiday : hours.weekday
+  // 문을 여는 공휴일은 휴일(일요일·공휴일) 운영시간을 쓴다
+  const span: Span = holiday || seoul.day === 0 ? hours.holiday : seoul.day === 6 ? hours.saturday : hours.weekday
   if (!span) return { kind: 'closed', label: '오늘 휴관' }
   const [open, close] = span.map(toMin)
   if (seoul.minutes < open) return { kind: 'before', label: `오늘 ${span[0]} 개관` }
@@ -77,5 +95,6 @@ function seoulParts(now: Date) {
       .formatToParts(now).map((x) => [x.type, Number(x.value)]),
   )
   const day = new Date(Date.UTC(p.year, p.month - 1, p.day)).getUTCDay()
-  return { day, dateOfMonth: p.day, daysInMonth: new Date(Date.UTC(p.year, p.month, 0)).getUTCDate(), minutes: p.hour * 60 + p.minute }
+  const ymd = `${p.year}${String(p.month).padStart(2, '0')}${String(p.day).padStart(2, '0')}`
+  return { ymd, day, dateOfMonth: p.day, daysInMonth: new Date(Date.UTC(p.year, p.month, 0)).getUTCDate(), minutes: p.hour * 60 + p.minute }
 }

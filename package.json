@@ -11,7 +11,8 @@
     "test": "vitest run",
     "sync:hours": "node --env-file-if-exists=.env scripts/sync-library-hours.ts",
     "sync:homepages": "node --env-file-if-exists=.env scripts/sync-shared-homepages.ts",
-    "sync:popular": "node --env-file-if-exists=.env scripts/sync-popular-books.ts"
+    "sync:popular": "node --env-file-if-exists=.env scripts/sync-popular-books.ts",
+    "sync:holidays": "node --env-file-if-exists=.env scripts/sync-holidays.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.107.1",

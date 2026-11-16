@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { openStatus, parseCloseDay } from './hours'
+import { closedForHoliday, openStatus, parseCloseDay } from './hours'
 import type { Hours } from '../api/_lib/types'
 
 // 한국 시간 기준 시각을 만든다 (UTC+9)
@@ -67,5 +67,29 @@ describe('운영 상태', () => {
     const onlyText = { closeDay: '매주 월요일 / 법정휴일', weekday: null, saturday: null, holiday: null }
     expect(openStatus(onlyText, kst('2026-11-16T10:00:00')).kind).toBe('closed')
     expect(openStatus(onlyText, kst('2026-11-17T10:00:00')).label).toBe('운영시간 확인 필요')
+  })
+})
+
+describe('공휴일 휴관', () => {
+  // 2026-12-25 금 기독탄신일, 2026-09-25 금 추석, 2026-05-24 일 부처님오신날
+  it('법정공휴일 휴관이면 공휴일 이름과 함께 휴관', () => {
+    expect(openStatus(hours, kst('2026-12-25T10:00:00')).label).toBe('오늘 휴관 · 기독탄신일')
+  })
+  it('공휴일에 여는 곳은 휴일 운영시간을 쓴다', () => {
+    const h = { ...hours, closeDay: '매주 월요일+설 연휴+추석 연휴', holiday: ['10:00', '17:00'] as [string, string] }
+    expect(openStatus(h, kst('2026-12-25T10:30:00')).label).toBe('운영 중 · 17:00까지')
+    expect(openStatus(h, kst('2026-09-25T10:30:00')).label).toBe('오늘 휴관 · 추석')
+  })
+  it('"일요일을 제외한 법정공휴일"은 일요일 공휴일에 연다 (겹치면 휴관이라 적힌 곳은 닫음)', () => {
+    expect(closedForHoliday('매주 월요일+일요일을 제외한 법정공휴일', '부처님오신날', 0)).toBe(false)
+    expect(closedForHoliday('월+공휴일(일 제외)', '부처님오신날', 0)).toBe(false)
+    expect(closedForHoliday('월+국가지정공휴일(일요일제외, 단 일요일이 다른 법정공휴일과 겹치는 경우에는 휴관함)', '부처님오신날', 0)).toBe(true)
+    expect(closedForHoliday('매주 월요일+일요일을 제외한 법정공휴일', '기독탄신일', 5)).toBe(true)
+  })
+  it('명절·신정·선거일만 적힌 곳은 그날만 휴관', () => {
+    expect(closedForHoliday('1월1일+설날+추석+매주일요일', '설날', 2)).toBe(true)
+    expect(closedForHoliday('1월1일+설날+추석+매주일요일', '1월1일', 4)).toBe(true)
+    expect(closedForHoliday('1월1일+설날+추석+매주일요일', '삼일절', 0)).toBe(false)
+    expect(closedForHoliday('매월 셋째 월요일, 신정, 설 연휴, 추석 연휴, 선거일', '전국동시지방선거', 3)).toBe(true)
   })
 })
