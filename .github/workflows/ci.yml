@@ -11,8 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
@@ -20,7 +20,11 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
-      # 러너에 설치된 Chrome을 쓴다 (playwright.config.ts의 channel: 'chrome'). API는 가짜 응답이라 키가 필요 없다
+      # 러너 이미지(ubuntu-latest → Ubuntu 26)에 Chrome이 있다고 가정하지 않고, Playwright용 Chromium을 직접 받는다
+      - run: npx playwright install --with-deps chromium
+      # 러너에는 한글 글꼴이 없어 글자 크기가 달라지고, 높이·위치를 재는 테스트(운영시간 접기, 지도↔목록)가 흔들린다
+      - run: sudo apt-get install -y -qq fonts-noto-cjk
+      # API는 가짜 응답이라 키가 필요 없다
       - run: npm run e2e
       - uses: actions/upload-artifact@v4
         if: failure()
