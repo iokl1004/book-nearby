@@ -26,10 +26,12 @@ export function fallbackHours(lib: Pick<Library, 'closed' | 'operatingTime'>): H
   }
 }
 
-// 도서관마다 대출 여부를 따로 호출하므로(정보나루 하루 한도), 가까운 순으로 정렬한 뒤 앞 5곳만 조회한다.
-const MAX_LIBRARIES = 5
+// 도서관마다 대출 여부를 따로 호출하므로(정보나루 하루 한도), 가까운 순으로 정렬한 뒤 3곳씩 나눠 조회한다.
+// 처음엔 3곳만, 더 보고 싶으면 "도서관 더 보기"로 다음 3곳 (offset). 상세 화면 1번에 5건 → 3건.
+const PAGE_SIZE = 3
+const MAX_PAGE_SIZE = 10
 
-// GET /api/libraries?isbn=9788...&region=11[&lat=37.56&lng=126.97]
+// GET /api/libraries?isbn=9788...&region=11[&lat=37.56&lng=126.97][&offset=3][&limit=3]
 export async function GET(request: Request): Promise<Response> {
   const params = new URL(request.url).searchParams
   const isbn = params.get('isbn') ?? ''
@@ -39,6 +41,8 @@ export async function GET(request: Request): Promise<Response> {
   }
   const lat = Number(params.get('lat')), lng = Number(params.get('lng'))
   const here = params.has('lat') && lat >= 33 && lat <= 39 && lng >= 124 && lng <= 132 ? { lat, lng } : null
+  const offset = Math.max(0, Math.floor(Number(params.get('offset')) || 0))
+  const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, Math.floor(Number(params.get('limit')) || PAGE_SIZE)))
 
   try {
     // 정보나루는 가나다순으로 주기 때문에 전부 받아서 거리순으로 다시 정렬한다.
@@ -48,7 +52,7 @@ export async function GET(request: Request): Promise<Response> {
       ? all.map((lib) => ({ ...lib, distance: Math.round(meters(here, lib)) })).sort((a, b) => a.distance - b.distance)
       : all
     const items = await Promise.all(
-      nearest.slice(0, MAX_LIBRARIES).map(async (lib) => {
+      nearest.slice(offset, offset + limit).map(async (lib) => {
         const [exist, placeId] = await Promise.all([callApi('bookExist', { libCode: lib.code, isbn13: isbn }), findPlaceId(lib)])
         return {
           ...lib,
@@ -59,7 +63,9 @@ export async function GET(request: Request): Promise<Response> {
         }
       }),
     )
-    return json({ mock: isMock(), total: all.length, items }, 200, 'max-age=3600, stale-while-revalidate=600')
+    // nextOffset: 다음 묶음의 시작 위치, 더 없으면 null
+    const nextOffset = offset + limit < all.length ? offset + limit : null
+    return json({ mock: isMock(), total: all.length, items, nextOffset }, 200, 'max-age=3600, stale-while-revalidate=600')
   } catch (e) {
     console.error(e)
     if (e instanceof QuotaError) return json({ error: QUOTA_MESSAGE }, 429)

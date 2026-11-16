@@ -16,9 +16,14 @@ async function getJson<T>(url: string): Promise<T> {
 export const searchBooks = (q: string) =>
   getJson<ListResponse<Book>>(`/api/search?${new URLSearchParams({ q })}`)
 
-export const getLibraries = (isbn: string, region: string, here: Coords | null) =>
-  getJson<ListResponse<LibraryWithAvailability>>(
-    `/api/libraries?${new URLSearchParams({ isbn, region, ...(here && { lat: String(here.lat), lng: String(here.lng) }) })}`,
+// 가까운 순으로 3곳씩. offset은 "도서관 더 보기"로 다음 묶음을 받을 때 쓴다
+export const getLibraries = (isbn: string, region: string, here: Coords | null, offset = 0) =>
+  getJson<ListResponse<LibraryWithAvailability> & { nextOffset: number | null }>(
+    `/api/libraries?${new URLSearchParams({
+      isbn, region,
+      ...(here && { lat: String(here.lat), lng: String(here.lng) }),
+      ...(offset > 0 && { offset: String(offset) }),
+    })}`,
   )
 
 export const getBook = (isbn: string) =>

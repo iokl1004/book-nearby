@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { getBook, getLibraries, getRegionCounts, getRoundedPosition, REGIONS, type Book, type Coords } from '../api'
 import BookInfo from '../components/BookInfo'
@@ -40,10 +40,19 @@ export default function BookPage() {
   const [here, setHere] = useState<Coords | null>(null)
   const [locating, setLocating] = useState(false)
   const [locationError, setLocationError] = useState('')
-  const { data, isFetching, error } = useQuery({
+  // 도서관마다 대출 여부를 따로 물어야 해서(정보나루 호출) 가까운 3곳만 먼저, 나머지는 "도서관 더 보기"로 3곳씩
+  const libs = useInfiniteQuery({
     queryKey: ['libraries', isbn, region, here],
-    queryFn: () => getLibraries(isbn, region, here),
+    queryFn: ({ pageParam }) => getLibraries(isbn, region, here, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (last) => last.nextOffset ?? undefined,
   })
+  const { isFetching, error } = libs
+  const data = useMemo(() => {
+    const pages = libs.data?.pages
+    return pages && { mock: pages[0].mock, total: pages[0].total, items: pages.flatMap((p) => p.items) }
+  }, [libs.data])
+  const remaining = data ? (data.total ?? 0) - data.items.length : 0
 
   const locate = () => {
     setLocating(true)
@@ -66,7 +75,8 @@ export default function BookPage() {
   // 지도와 목록이 같은 선택 상태를 공유한다
   const [selected, setSelected] = useState<string | null>(null)
   const mapBox = useRef<HTMLDivElement>(null)
-  useEffect(() => setSelected(null), [data])
+  // 다른 책·지역·위치로 바뀔 때만 선택을 푼다 ("더 보기"로 목록이 늘어날 때는 선택 유지)
+  useEffect(() => setSelected(null), [isbn, region, here])
   // 마커를 눌렀을 때만 목록을 그 항목까지 스크롤한다.
   // 목록에서 눌렀을 때도 스크롤하면 아래의 "지도로 올라가기" 스크롤을 취소해 버린다.
   const fromList = useRef(false)
@@ -82,11 +92,13 @@ export default function BookPage() {
   }
   const regionName = REGIONS.find(([code]) => code === region)?.[1]
   const noLibraries = !!data && data.items.length === 0
-  // 고른 지역에 없을 때만 다른 지역 소장 현황을 묻는다 (17개 시·도 조회라 필요할 때만)
+  // 다른 지역 소장 현황은 17개 시·도를 묻는 비싼 조회(정보나루 17건)라, 자동으로 하지 않고 버튼을 눌렀을 때만 묻는다
+  const [askOthers, setAskOthers] = useState(false)
+  useEffect(() => setAskOthers(false), [isbn])
   const others = useQuery({
     queryKey: ['regions', isbn],
     queryFn: () => getRegionCounts(isbn),
-    enabled: noLibraries,
+    enabled: noLibraries && askOthers,
     staleTime: 60 * 60 * 1000,
   })
   const otherRegions = others.data?.items.filter((r) => r.code !== region) ?? []
@@ -160,7 +172,12 @@ export default function BookPage() {
             <div className="empty-state">
               <p><b>{regionName}</b>에는 이 판본을 가진 도서관이 없어요.</p>
 
-              {/* 지역을 하나씩 바꿔 보지 않아도 되게, 이 판본이 있는 지역을 바로 보여준다 */}
+              {/* 지역을 하나씩 바꿔 보지 않아도 되게, 버튼 하나로 이 판본이 있는 지역을 보여준다 */}
+              {!askOthers && (
+                <button type="button" className="btn-ghost" onClick={() => setAskOthers(true)}>
+                  🔎 다른 지역에서 찾아보기
+                </button>
+              )}
               {others.isFetching && <p className="meta">다른 지역에서 찾는 중…</p>}
               {otherRegions.length > 0 && (
                 <>
@@ -192,6 +209,11 @@ export default function BookPage() {
               <LibraryItem key={lib.code} lib={lib} active={selected === lib.code} onSelect={() => selectFromList(lib.code)} />
             ))}
           </ul>
+          {libs.hasNextPage && (
+            <button type="button" className="btn-ghost more-btn" onClick={() => libs.fetchNextPage()} disabled={libs.isFetchingNextPage}>
+              {libs.isFetchingNextPage ? '불러오는 중…' : `도서관 더 보기 (${Math.min(3, remaining)}곳 / 남은 ${remaining}곳)`}
+            </button>
+          )}
         </section>
 
         {/* 도서관이 없으면 빈 지도 상자를 보여주지 않는다 (고장 난 것처럼 보여서) */}

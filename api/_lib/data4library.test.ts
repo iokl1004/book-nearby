@@ -132,6 +132,24 @@ describe('API 호출', () => {
     expect(body.total).toBe(3)
   })
 
+  it('가까운 순으로 나눠서 준다 (도서관 더 보기)', async () => {
+    vi.stubEnv('DATA4LIBRARY_KEY', '')
+    const page = async (q: string) => (await (await libraries(new Request(`http://x/api/libraries?isbn=9788900000001&region=11&lat=37.59&lng=127.09${q}`))).json()) as any
+    const first = await page('&limit=2')
+    expect(first.items.map((l: any) => l.name)).toEqual(['중랑구립면목정보도서관', '성동구립도서관'])
+    expect(first.nextOffset).toBe(2)
+    const second = await page('&offset=2&limit=2')
+    expect(second.items.map((l: any) => l.name)).toEqual(['마포중앙도서관'])
+    expect(second.nextOffset).toBeNull() // 더 없음
+    expect(second.total).toBe(3)
+  })
+
+  it('잘못된 offset·limit은 안전한 값으로 바꾼다', async () => {
+    vi.stubEnv('DATA4LIBRARY_KEY', '')
+    const body: any = await (await libraries(new Request('http://x/api/libraries?isbn=9788900000001&region=11&offset=-5&limit=999'))).json()
+    expect(body.items).toHaveLength(3) // offset 0부터, limit은 최대 10으로 제한 (목업은 3곳)
+  })
+
   it('한국 밖 좌표는 무시한다', async () => {
     vi.stubEnv('DATA4LIBRARY_KEY', '')
     const res = await libraries(new Request('http://x/api/libraries?isbn=9788900000001&region=11&lat=0&lng=0'))
