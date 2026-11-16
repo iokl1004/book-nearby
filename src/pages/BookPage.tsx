@@ -7,6 +7,7 @@ import KakaoMap, { regionCodeAt, type Place } from '../components/KakaoMap'
 import Cover from '../components/Cover'
 import LibraryItem from '../components/LibraryItem'
 import { openStatus } from '../hours'
+import { useFavorites } from '../favorites'
 
 export default function BookPage() {
   const { isbn = '' } = useParams()
@@ -24,6 +25,8 @@ export default function BookPage() {
         contributors: detail.data?.contributors.length ? detail.data.contributors : fromSearch.contributors,
       }
     : detail.data, [fromSearch, detail.data])
+
+  const favorites = useFavorites()
 
   // 브라우저 탭·공유 미리보기에 책 제목이 보이게
   useEffect(() => {
@@ -122,7 +125,17 @@ export default function BookPage() {
         <div>
           {book ? (
             <>
-              <h1>{book.title}</h1>
+              <div className="title-row">
+                <h1>{book.title}</h1>
+                <button
+                  type="button"
+                  className={favorites.has(book.isbn13) ? 'fav-btn on' : 'fav-btn'}
+                  aria-pressed={favorites.has(book.isbn13)}
+                  onClick={() => favorites.toggle(book)}
+                >
+                  {favorites.has(book.isbn13) ? '♥ 찜함' : '♡ 찜하기'}
+                </button>
+              </div>
               <BookInfo book={book} />
             </>
           ) : detail.isFetching ? (

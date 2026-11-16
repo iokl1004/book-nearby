@@ -6,10 +6,12 @@ import { searchBooks } from '../api'
 import BookInfo from '../components/BookInfo'
 import Cover from '../components/Cover'
 import SearchBox from '../components/SearchBox'
+import { useFavorites } from '../favorites'
 
 export default function SearchPage() {
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''
+  const favorites = useFavorites()
   // 첫 화면 추천: 인기 대출 도서 상위 5권 (검색창 미리보기와 같은 파일이라 한 번만 받는다)
   const [top, setTop] = useState<Suggestion[]>([])
   useEffect(() => {
@@ -52,6 +54,23 @@ export default function SearchPage() {
                 </Link>
               ))}
             </div>
+          </div>
+        )}
+        {/* 찜한 책: 이 브라우저에 저장된 목록이라 API 호출 없이 바로 그린다 */}
+        {favorites.list.length > 0 && (
+          <div className="favorites">
+            <p className="popular-label">♥ 찜한 책 {favorites.list.length}권</p>
+            <ul className="fav-list">
+              {favorites.list.slice(0, 8).map((book) => (
+                <li key={book.isbn13}>
+                  <Link className="fav-card" to={`/book/${book.isbn13}`} state={{ book }}>
+                    <Cover src={book.image} title={book.title} />
+                    <span>{book.title}</span>
+                  </Link>
+                  <button type="button" className="fav-remove" aria-label={`${book.title} 찜 해제`} onClick={() => favorites.toggle(book)}>×</button>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
         <ol className="steps">
