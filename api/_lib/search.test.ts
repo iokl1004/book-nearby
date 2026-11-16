@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GET as search } from '../search.js'
 import { clearCache } from './data4library.js'
 
@@ -18,7 +18,8 @@ function fakeLibrary(results: Record<'title' | 'author' | 'keyword', { found: nu
 
 const titles = async (q: string) => ((await (await search(new Request(`http://x/api/search?q=${encodeURIComponent(q)}`))).json()) as any).items.map((b: any) => b.title)
 
-describe('도서 검색', () => {
+describe('도서 검색 (정보나루, 카카오 키가 없을 때)', () => {
+  beforeEach(() => vi.stubEnv('KAKAO_REST_KEY', ''))
   afterEach(() => {
     vi.unstubAllEnvs()
     vi.unstubAllGlobals()
@@ -49,5 +50,60 @@ describe('도서 검색', () => {
     const calls = fakeLibrary({ title: { found: 1, names: ['토지'] }, author: { found: 0, names: [] }, keyword: { found: 9, names: ['x'] } })
     await titles('토지')
     expect(calls).not.toContain('keyword')
+  })
+})
+
+// 카카오 책 검색을 흉내 낸다: target(title/person/전체)마다 다른 결과
+// 책마다 고유한 ISBN13을 붙인다 (같은 책이 양쪽에 나오면 같은 ISBN → 중복 제거 확인용)
+const isbnOf = (bookTitle: string) => `978${String([...bookTitle].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 1e10, 7)).padStart(10, '0')}`
+
+function fakeKakao(results: Record<'title' | 'person' | 'all', { total: number; titles: string[] }>) {
+  const calls: string[] = []
+  vi.stubGlobal('fetch', async (url: string) => {
+    if (!url.startsWith('https://dapi.kakao.com')) {
+      calls.push('library')
+      return new Response('', { status: 500 })
+    }
+    const target = (new URL(url).searchParams.get('target') ?? 'all') as 'title' | 'person' | 'all'
+    calls.push(target)
+    const r = results[target]
+    const documents = r.titles.map((t) => ({
+      title: t, authors: ['저자'], translators: [], publisher: '출판사', datetime: '2020-01-01', isbn: `x ${isbnOf(t)}`, thumbnail: '',
+    }))
+    return new Response(JSON.stringify({ meta: { total_count: r.total }, documents }))
+  })
+  return calls
+}
+
+describe('도서 검색 (카카오 우선)', () => {
+  beforeEach(() => {
+    vi.stubEnv('KAKAO_REST_KEY', 'kakao')
+    vi.stubEnv('DATA4LIBRARY_KEY', 'test')
+  })
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+    clearCache()
+  })
+
+  it('제목·저자 검색을 함께 하고 결과가 많은 쪽을 먼저 (헤르만 헤세 → 저자 먼저)', async () => {
+    // 데미안은 제목 검색에도 나온다 → 한 번만, 저자 결과 순서대로
+    const calls = fakeKakao({ title: { total: 260, titles: ['헤세 평전', '데미안'] }, person: { total: 1725, titles: ['데미안', '싯다르타'] }, all: { total: 0, titles: [] } })
+    expect(await titles('헤르만 헤세')).toEqual(['데미안', '싯다르타', '헤세 평전'])
+    expect(calls).not.toContain('library') // 정보나루 도서 검색은 부르지 않는다
+    expect(calls).not.toContain('all') // 결과가 있으면 전체 검색은 하지 않는다
+  })
+
+  it('둘 다 없으면 전체 검색으로 한 번 더', async () => {
+    const calls = fakeKakao({ title: { total: 0, titles: [] }, person: { total: 0, titles: [] }, all: { total: 3, titles: ['민음사 세계문학'] } })
+    expect(await titles('민음사')).toEqual(['민음사 세계문학'])
+    expect(calls).toContain('all')
+  })
+
+  it('카카오가 실패하면 정보나루 검색으로 대신한다', async () => {
+    vi.stubGlobal('fetch', async (url: string) => url.startsWith('https://dapi.kakao.com')
+      ? new Response('', { status: 500 })
+      : new Response(JSON.stringify({ response: { numFound: 1, docs: [{ doc: { isbn13: '1', bookname: '토지' } }] } })))
+    expect(await titles('토지')).toEqual(['토지'])
   })
 })

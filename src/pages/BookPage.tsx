@@ -12,11 +12,18 @@ export default function BookPage() {
   const { isbn = '' } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
-  // 검색 결과에서 왔으면 넘겨받은 책 정보를 바로 쓰고,
-  // 주소로 바로 들어왔으면(공유 링크·새로고침) ISBN으로 불러온다
+  // 검색 결과에서 왔으면 넘겨받은 책 정보를 바로 보여주고,
+  // 정보나루 상세 정보로 분야와 글·그림 구분을 채운다 (검색은 카카오라 분야가 없고 저자를 역할별로 나누지 않음).
+  // 주소로 바로 들어왔으면(공유 링크·새로고침) 상세 정보만으로 보여준다. 같은 책은 서버에서 하루 저장돼 다시 부르지 않는다.
   const fromSearch = (location.state as { book?: Book } | null)?.book
-  const detail = useQuery({ queryKey: ['book', isbn], queryFn: () => getBook(isbn), enabled: !fromSearch, retry: false })
-  const book = fromSearch ?? detail.data
+  const detail = useQuery({ queryKey: ['book', isbn], queryFn: () => getBook(isbn), retry: false, staleTime: 24 * 60 * 60 * 1000 })
+  const book = useMemo<Book | undefined>(() => fromSearch
+    ? {
+        ...fromSearch,
+        genre: fromSearch.genre || detail.data?.genre || '',
+        contributors: detail.data?.contributors.length ? detail.data.contributors : fromSearch.contributors,
+      }
+    : detail.data, [fromSearch, detail.data])
 
   // 브라우저 탭·공유 미리보기에 책 제목이 보이게
   useEffect(() => {
